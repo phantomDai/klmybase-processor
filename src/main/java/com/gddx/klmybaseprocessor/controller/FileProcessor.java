@@ -18,14 +18,12 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
-
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
-
 
 @RestController
 public class FileProcessor {
@@ -40,6 +38,13 @@ public class FileProcessor {
     private static final String TABLENAME = "file_table" ;
 
     private static final String FILEPATH = "/home/dev/";
+
+    private static String[] chars = new String[] { "a", "b", "c", "d", "e", "f",
+            "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s",
+            "t", "u", "v", "w", "x", "y", "z", "0", "1", "2", "3", "4", "5",
+            "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "G", "H", "I",
+            "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V",
+            "W", "X", "Y", "Z" };
 
 
     //the object is used to configurate Hadoop
@@ -96,20 +101,23 @@ public class FileProcessor {
         //get current time
         String currentTime = String.valueOf(System.currentTimeMillis());
         // get a random number
-        Random ran = new Random();
-        int tempRandom = ran.nextInt(10000);
-        // make sure that all numbers is bigger than 1000
-        if (tempRandom < 1000)
-            tempRandom = tempRandom + 1000;
+        StringBuffer shortBuffer = new StringBuffer();
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        for (int i = 0; i < 8; i++) {
+            String str = uuid.substring(i * 4, i * 4 + 4);
+            int x = Integer.parseInt(str, 16);
+            shortBuffer.append(chars[x % 0x3E]);
+        }
+
         //get suffix
         String suffix = filename.substring(filename.lastIndexOf(".") + 1);
 
         // generate a rowkey
-        rowkey = suffix + "(@_@)" + currentTime + "(@_@)" +String.valueOf(tempRandom);
+        rowkey = suffix + "(@_@)" + currentTime + "(@_@)" + shortBuffer.toString();
         return rowkey;
     }
 
-    @PostMapping(value = "/api/file/upload/smallerfiles/")
+    @PostMapping(value = "/api/file/upload/smallerfiles")
     @ResponseBody
     public JSONObject uploadSmallerFiles(HttpServletRequest request) {
         List<MultipartFile> files = ((MultipartHttpServletRequest) request).getFiles("file");
@@ -142,14 +150,16 @@ public class FileProcessor {
                     put.addColumn(Bytes.toBytes("fileInfo"),Bytes.toBytes("file_content"),fileBytes);
                     Table table = connectionHbase.getTable(TableName.valueOf(TABLENAME));
                     table.put(put);
+                    tempMap.put("code", Integer.valueOf(0));
                     tempMap.put("id",tempRowKey);
-                    tempMap.put("code", String.valueOf(0));
-                    tempMap.put("message",fileName);
+                    tempMap.put("fileName",fileName);
+                    tempMap.put("message","");
                 } catch (IOException e) {
                     failedFile++;
+                    tempMap.put("code", Integer.valueOf(-1));
                     tempMap.put("id",tempRowKey);
-                    tempMap.put("code", String.valueOf(-1));
-                    tempMap.put("message",fileName);
+                    tempMap.put("fileName",fileName);
+                    tempMap.put("message","");
                     e.printStackTrace();
                 }
                 mapInfo.add(tempMap);
@@ -159,9 +169,9 @@ public class FileProcessor {
         }
         Map<String,Object> internalMap = new HashMap<>();
         internalMap.put("total",files.size());
-        internalMap.put("error",String.valueOf(failedFile));
+        internalMap.put("error",failedFile);
         internalMap.put("data",mapInfo);
-        return Response.FileResponse(String.valueOf(6),"",internalMap);
+        return Response.FileResponse(6,"",internalMap);
     }
 
 
@@ -220,10 +230,10 @@ public class FileProcessor {
 
         Map<String,Object> internalMap = new HashMap<>();
         internalMap.put("data",tempMap);
-        return Response.FileResponse("0","成功",internalMap);
+        return Response.FileResponse(0,"成功",internalMap);
     }
 
-    @PostMapping(value = "/api/file/upload/biggerfiles/")
+    @PostMapping(value = "/api/file/upload/biggerfiles")
     @ResponseBody
     public JSONObject uploadBiggerFiles(HttpServletRequest request){
 
@@ -269,15 +279,17 @@ public class FileProcessor {
                 out.write(content);
                 out.close();
                 in.close();
-                tempMap.put("id", String.valueOf(cruNumberOfFiles));
-                tempMap.put("code",String.valueOf(0));
-                tempMap.put("message","操作成功,文件名为：" + file.getOriginalFilename());
+                tempMap.put("code",Integer.valueOf(0));
+                tempMap.put("id", cruNumberOfFiles);
+                tempMap.put("fileName",file.getOriginalFilename());
+                tempMap.put("message","");
                 listInfo.add(tempMap);
             } catch (IOException e) {
                 failedFile++;
-                tempMap.put("id", String.valueOf(cruNumberOfFiles));
-                tempMap.put("code",String.valueOf(-1));
-                tempMap.put("message","操作失败,文件名为：" + file.getOriginalFilename());
+                tempMap.put("code",Integer.valueOf(-1));
+                tempMap.put("id", cruNumberOfFiles);
+                tempMap.put("fileName",file.getOriginalFilename());
+                tempMap.put("message","");
                 listInfo.add(tempMap);
             }
         }
@@ -289,10 +301,10 @@ public class FileProcessor {
         }
 
         Map<String,Object> internalMap = new HashMap<>();
-        internalMap.put("total",String.valueOf(files.size()));
-        internalMap.put("error",String.valueOf(failedFile));
+        internalMap.put("total",Integer.valueOf(files.size()));
+        internalMap.put("error",Integer.valueOf(failedFile));
         internalMap.put("data",listInfo);
-        return Response.FileResponse(String.valueOf(6),"",internalMap);
+        return Response.FileResponse(6,"",internalMap);
     }
 
     @GetMapping(value = "/api/file/download/biggerfiles/{id}", produces = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -302,11 +314,6 @@ public class FileProcessor {
         String fileName = "";
         try {
             FileStatus[] fileStatuses = fileSystem.listStatus(new Path("/home/dev/"));
-            if (fileStatuses == null){
-                System.out.println("无文件列表++++++++++++++++++++++++++++++");
-            }else {
-                System.out.println("获得了所有的文件状态");
-            }
 
             for (FileStatus fs : fileStatuses) {
                 if (fs.getPath().getName().contains("_"+ id +".")){
@@ -342,7 +349,7 @@ public class FileProcessor {
         tempMap.put("id",id);
         Map<String,Object> internalMap = new HashMap<>();
         internalMap.put("data",tempMap);
-        return Response.FileResponse("0","成功",internalMap);
+        return Response.FileResponse(0,"成功",internalMap);
     }
 
 }
