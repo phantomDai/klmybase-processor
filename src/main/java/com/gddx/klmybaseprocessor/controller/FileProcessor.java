@@ -2,6 +2,7 @@ package com.gddx.klmybaseprocessor.controller;
 
 import com.alibaba.fastjson.JSONObject;
 import com.gddx.klmybaseprocessor.util.ChangeFileName;
+import com.gddx.klmybaseprocessor.util.ObtainFileType;
 import com.gddx.klmybaseprocessor.util.Response;
 import com.gddx.klmybaseprocessor.util.TransformFileToBytes;
 
@@ -137,7 +138,10 @@ public class FileProcessor {
         if (files != null && files.size() > 0){
             for (int i = 0; i < files.size(); i++) {
                 Map<String,Object> tempMap = new HashMap<>();
+                Map<String,Object> fileMap = new HashMap<>();
+                fileMap.clear();
                 tempMap.clear();
+
                 String fileName = "";
                 file = files.get(i);
                 fileName = file.getOriginalFilename();
@@ -152,15 +156,18 @@ public class FileProcessor {
                     table.put(put);
                     tempMap.put("code", Integer.valueOf(0));
                     tempMap.put("id",tempRowKey);
-                    tempMap.put("fileName",fileName);
                     tempMap.put("message","");
+                    fileMap.put("fileName",fileName);
+                    fileMap.put("type",ObtainFileType.obtainFileType(fileName));
+                    tempMap.put("data",fileMap);
                 } catch (IOException e) {
                     failedFile++;
                     tempMap.put("code", Integer.valueOf(-1));
                     tempMap.put("id",tempRowKey);
-                    tempMap.put("fileName",fileName);
                     tempMap.put("message","");
-                    e.printStackTrace();
+                    fileMap.put("fileName",fileName);
+                    fileMap.put("type",ObtainFileType.obtainFileType(fileName));
+                    tempMap.put("data",fileMap);
                 }
                 mapInfo.add(tempMap);
             }
@@ -259,6 +266,9 @@ public class FileProcessor {
 
         for (int i = 0; i < files.size(); i++) {
             Map<String,Object> tempMap = new HashMap<>();
+            Map<String,Object> fileMap = new HashMap<>();
+            tempMap.clear();
+            fileMap.clear();
 
             MultipartFile file = files.get(i);
             cruNumberOfFiles++;
@@ -281,17 +291,20 @@ public class FileProcessor {
                 in.close();
                 tempMap.put("code",Integer.valueOf(0));
                 tempMap.put("id", cruNumberOfFiles);
-                tempMap.put("fileName",file.getOriginalFilename());
+                fileMap.put("fileName",file.getOriginalFilename());
+                fileMap.put("fileType", ObtainFileType.obtainFileType(file.getOriginalFilename()));
                 tempMap.put("message","");
-                listInfo.add(tempMap);
+                tempMap.put("data",fileMap);
             } catch (IOException e) {
                 failedFile++;
                 tempMap.put("code",Integer.valueOf(-1));
                 tempMap.put("id", cruNumberOfFiles);
-                tempMap.put("fileName",file.getOriginalFilename());
+                fileMap.put("fileName",file.getOriginalFilename());
+                fileMap.put("fileType", ObtainFileType.obtainFileType(file.getOriginalFilename()));
                 tempMap.put("message","");
-                listInfo.add(tempMap);
+                tempMap.put("data",fileMap);
             }
+            listInfo.add(tempMap);
         }
 
         try {
